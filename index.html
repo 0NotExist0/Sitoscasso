@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rilevatore di Impatti</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            text-align: center;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="startButton">Attiva Sensori e Audio</button>
+    <div id="status">In attesa...</div>
+
+    <script>
+        // --- CONFIGURAZIONE ---
+        // Soglia di accelerazione. Modifica questo valore per renderlo più o meno sensibile.
+        // Valori bassi = scatta anche con movimenti leggeri.
+        const SENSITIVITY_THRESHOLD = 25; 
+        
+        // Percorso del file audio dentro la cartella "suoni"
+        const AUDIO_PATH = 'suoni/impatto.mp3'; 
+        
+        // Tempo minimo tra un suono e l'altro per evitare accavallamenti (in millisecondi)
+        const COOLDOWN_MS = 1000; 
+
+        // --- VARIABILI DI STATO ---
+        let lastImpactTime = 0;
+        const impactSound = new Audio(AUDIO_PATH);
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+
+        /**
+         * Metodo completo per la gestione dei dati provenienti dall'accelerometro.
+         */
+        function handleMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+
+            // Se il dispositivo non ha il sensore o non restituisce dati
+            if (!acc || acc.x === null) return;
+
+            // Calcolo della magnitudo del vettore di accelerazione 3D
+            const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+
+            // Rilevamento della botta in base alla soglia
+            if (magnitude > SENSITIVITY_THRESHOLD) {
+                const currentTime = new Date().getTime();
+                
+                // Controlliamo che sia passato abbastanza tempo dall'ultima botta
+                if (currentTime - lastImpactTime > COOLDOWN_MS) {
+                    lastImpactTime = currentTime;
+                    triggerImpact();
+                }
+            }
+        }
+
+        /**
+         * Metodo completo per gestire l'interfaccia visiva e la riproduzione audio.
+         */
+        function triggerImpact() {
+            // Aggiorna la UI
+            statusDiv.textContent = "💥 Botta Rilevata!";
+            statusDiv.style.color = "#E74C3C";
+
+            // Interrompe l'audio se stava già suonando e lo fa ripartire da zero
+            impactSound.currentTime = 0;
+            impactSound.play().catch(error => {
+                console.warn("Errore durante la riproduzione dell'audio:", error);
+            });
+
+            // Ripristina la UI di ascolto dopo mezzo secondo
+            setTimeout(() => {
+                statusDiv.textContent = "In ascolto...";
+                statusDiv.style.color = "#27AE60";
+            }, 500);
+        }
+
+        /**
+         * Metodo completo per inizializzare permessi e sbloccare le funzionalità browser.
+         */
+        async function initializeDetection() {
+            // 1. Inizializzazione "silenziosa" dell'audio per sbloccare le policy dei browser
+            impactSound.play().then(() => {
+                impactSound.pause();
+                impactSound.currentTime = 0;
+            }).catch(err => {
+                console.error("L'utente deve interagire con la pagina per sbloccare l'audio.", err);
+            });
+
+            // 2. Richiesta formale dei permessi (obbligatorio su iOS 13+)
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permissionState = await DeviceMotionEvent.requestPermission();
+                    if (permissionState === 'granted') {
+                        window.addEventListener('devicemotion', handleMotion);
+                        setupActiveUI();
+                    } else {
+                        statusDiv.textContent = "Permesso ai sensori negato.";
+                        statusDiv.style.color = "red";
+                    }
+                } catch (error) {
+                    console.error("Errore nella richiesta dei permessi iOS:", error);
+                    statusDiv.textContent = "Errore permessi sensori.";
+                }
+            } else {
+                // 3. Fallback per Android e vecchi dispositivi
+                window.addEventListener('devicemotion', handleMotion);
+                setupActiveUI();
+            }
+        }
+
+        /**
+         * Metodo di supporto per aggiornare l'interfaccia dopo il setup.
+         */
+        function setupActiveUI() {
+            statusDiv.textContent = "In ascolto...";
+            statusDiv.style.color = "#27AE60";
+            startButton.style.display = "none"; // Nasconde il bottone dopo l'attivazione
+        }
+
+        // --- ASSEGNAZIONE EVENTI ---
+        startButton.addEventListener('click', initializeDetection);
+
+    </script>
+</body>
+</html>
