@@ -1,121 +1,170 @@
-// --- CONFIGURAZIONE ---
-// Soglia di accelerazione.
-const SENSITIVITY_THRESHOLD = 25; 
-
-// Tempo minimo tra un suono e l'altro (in millisecondi)
-const COOLDOWN_MS = 1000; 
-
-// NUOVO: Array con i percorsi di tutti i suoni possibili.
-// Inserisci qui i nomi esatti dei file presenti nella tua cartella "suoni".
-const AUDIO_FILES = [
-    'suoni/1.mp3',
-    'suoni/2.mp3',
-    'suoni/3.mp3',
-    'suoni/4.waw',
-    'suoni/5.waw', 
-    'suoni/6.waw',
-    'suoni/7.waw',
-    'suoni/8.waw
-];
-
-// --- VARIABILI DI STATO ---
-let lastImpactTime = 0;
-
-// Inizializziamo l'oggetto Audio con il primo suono della lista per sbloccarlo in seguito
-const impactSound = new Audio(AUDIO_FILES[0]); 
-const startButton = document.getElementById('startButton');
-const statusDiv = document.getElementById('status');
-
-/**
- * Metodo completo per la gestione dei dati provenienti dall'accelerometro.
- */
-function handleMotion(event) {
-    const acc = event.accelerationIncludingGravity;
-
-    if (!acc || acc.x === null) return;
-
-    const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
-
-    if (magnitude > SENSITIVITY_THRESHOLD) {
-        const currentTime = new Date().getTime();
-        
-        if (currentTime - lastImpactTime > COOLDOWN_MS) {
-            lastImpactTime = currentTime;
-            triggerImpact();
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rilevatore di Impatti</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            text-align: center;
         }
-    }
-}
+        button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
 
-/**
- * Metodo completo per gestire l'interfaccia visiva e la riproduzione audio casuale.
- */
-function triggerImpact() {
-    // Aggiorna la UI
-    statusDiv.textContent = "💥 Botta Rilevata!";
-    statusDiv.style.color = "#E74C3C";
+    <button id="startButton">Attiva Sensori e Audio</button>
+    <div id="status">In attesa...</div>
 
-    // Pescaggio di un suono casuale dall'array
-    const randomSoundIndex = Math.floor(Math.random() * AUDIO_FILES.length);
-    const selectedSound = AUDIO_FILES[randomSoundIndex];
+    <script>
+        // --- CONFIGURAZIONE ---
+        // Soglia di accelerazione.
+        const SENSITIVITY_THRESHOLD = 25; 
 
-    // Aggiorna la sorgente dell'oggetto Audio con il file pescato
-    impactSound.src = selectedSound;
+        // Tempo minimo tra un suono e l'altro (in millisecondi)
+        const COOLDOWN_MS = 1000; 
 
-    // Interrompe l'audio se stava già suonando e lo fa ripartire da zero
-    impactSound.currentTime = 0;
-    impactSound.play().catch(error => {
-        console.warn("Errore durante la riproduzione dell'audio:", error);
-    });
+        // Array con i percorsi di tutti i suoni possibili.
+        // CORRETTO: Aggiunto l'apice di chiusura sull'ultimo elemento e sistemato .waw in .wav
+        const AUDIO_FILES = [
+            'suoni/1.mp3',
+            'suoni/2.mp3',
+            'suoni/3.mp3',
+            'suoni/4.wav',
+            'suoni/5.wav', 
+            'suoni/6.wav',
+            'suoni/7.wav',
+            'suoni/8.wav'
+        ];
 
-    // Ripristina la UI di ascolto dopo mezzo secondo
-    setTimeout(() => {
-        statusDiv.textContent = "In ascolto...";
-        statusDiv.style.color = "#27AE60";
-    }, 500);
-}
+        // --- VARIABILI DI STATO ---
+        let lastImpactTime = 0;
 
-/**
- * Metodo completo per inizializzare permessi e sbloccare le funzionalità browser.
- */
-async function initializeDetection() {
-    // 1. Inizializzazione "silenziosa" dell'audio per sbloccare le policy
-    impactSound.play().then(() => {
-        impactSound.pause();
-        impactSound.currentTime = 0;
-    }).catch(err => {
-        console.error("L'utente deve interagire con la pagina per sbloccare l'audio.", err);
-    });
+        // Inizializziamo l'oggetto Audio con il primo suono della lista per sbloccarlo in seguito
+        const impactSound = new Audio(AUDIO_FILES[0]); 
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
 
-    // 2. Richiesta formale dei permessi (iOS 13+)
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-        try {
-            const permissionState = await DeviceMotionEvent.requestPermission();
-            if (permissionState === 'granted') {
+        /**
+         * Metodo completo per la gestione dei dati provenienti dall'accelerometro.
+         */
+        function handleMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+
+            if (!acc || acc.x === null) return;
+
+            const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+
+            if (magnitude > SENSITIVITY_THRESHOLD) {
+                const currentTime = new Date().getTime();
+                
+                if (currentTime - lastImpactTime > COOLDOWN_MS) {
+                    lastImpactTime = currentTime;
+                    triggerImpact();
+                }
+            }
+        }
+
+        /**
+         * Metodo completo per gestire l'interfaccia visiva e la riproduzione audio casuale.
+         */
+        function triggerImpact() {
+            // Aggiorna la UI
+            statusDiv.textContent = "💥 Botta Rilevata!";
+            statusDiv.style.color = "#E74C3C";
+
+            // Pescaggio di un suono casuale dall'array (equivalente di Random.Range)
+            const randomSoundIndex = Math.floor(Math.random() * AUDIO_FILES.length);
+            const selectedSound = AUDIO_FILES[randomSoundIndex];
+
+            // Aggiorna la sorgente dell'oggetto Audio con il file pescato
+            impactSound.src = selectedSound;
+
+            // Interrompe l'audio se stava già suonando e lo fa ripartire da zero
+            impactSound.currentTime = 0;
+            impactSound.play().catch(error => {
+                console.warn("Errore durante la riproduzione dell'audio:", error);
+            });
+
+            // Ripristina la UI di ascolto dopo mezzo secondo
+            setTimeout(() => {
+                statusDiv.textContent = "In ascolto...";
+                statusDiv.style.color = "#27AE60";
+            }, 500);
+        }
+
+        /**
+         * Metodo completo per inizializzare permessi e sbloccare le funzionalità browser.
+         */
+        async function initializeDetection() {
+            // 1. Inizializzazione "silenziosa" dell'audio per sbloccare le policy
+            impactSound.play().then(() => {
+                impactSound.pause();
+                impactSound.currentTime = 0;
+            }).catch(err => {
+                console.error("L'utente deve interagire con la pagina per sbloccare l'audio.", err);
+            });
+
+            // 2. Richiesta formale dei permessi (iOS 13+)
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permissionState = await DeviceMotionEvent.requestPermission();
+                    if (permissionState === 'granted') {
+                        window.addEventListener('devicemotion', handleMotion);
+                        setupActiveUI();
+                    } else {
+                        statusDiv.textContent = "Permesso ai sensori negato.";
+                        statusDiv.style.color = "red";
+                    }
+                } catch (error) {
+                    console.error("Errore nella richiesta dei permessi iOS:", error);
+                    statusDiv.textContent = "Errore permessi sensori.";
+                }
+            } else {
+                // 3. Fallback per Android e browser desktop
                 window.addEventListener('devicemotion', handleMotion);
                 setupActiveUI();
-            } else {
-                statusDiv.textContent = "Permesso ai sensori negato.";
-                statusDiv.style.color = "red";
             }
-        } catch (error) {
-            console.error("Errore nella richiesta dei permessi iOS:", error);
-            statusDiv.textContent = "Errore permessi sensori.";
         }
-    } else {
-        // 3. Fallback per Android e browser desktop
-        window.addEventListener('devicemotion', handleMotion);
-        setupActiveUI();
-    }
-}
 
-/**
- * Metodo di supporto per aggiornare l'interfaccia dopo il setup.
- */
-function setupActiveUI() {
-    statusDiv.textContent = "In ascolto...";
-    statusDiv.style.color = "#27AE60";
-    startButton.style.display = "none";
-}
+        /**
+         * Metodo di supporto per aggiornare l'interfaccia dopo il setup.
+         */
+        function setupActiveUI() {
+            statusDiv.textContent = "In ascolto...";
+            statusDiv.style.color = "#27AE60";
+            startButton.style.display = "none";
+        }
 
-// --- ASSEGNAZIONE EVENTI ---
-startButton.addEventListener('click', initializeDetection);
+        // --- ASSEGNAZIONE EVENTI ---
+        startButton.addEventListener('click', initializeDetection);
+
+    </script>
+</body>
+</html>
