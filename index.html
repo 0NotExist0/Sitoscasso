@@ -1,220 +1,117 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rilevatore di Impatti (Vercel + GitHub API)</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-            text-align: center;
-        }
-        button {
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        button:active {
-            transform: scale(0.98);
-        }
-        #status {
-            margin-top: 20px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #333;
-        }
-        #log {
-            margin-top: 10px;
-            font-size: 0.9rem;
-            color: #666;
-            max-width: 80%;
-            word-wrap: break-word;
-        }
-    </style>
-</head>
-<body>
+// --- CONFIGURAZIONE ---
+// Soglia di accelerazione.
+const SENSITIVITY_THRESHOLD = 25; 
 
-    <button id="startButton">Attiva Sensori e Scanner</button>
-    <div id="status">In attesa...</div>
-    <div id="log">Pronto per la scansione automatica...</div>
+// Tempo minimo tra un suono e l'altro (in millisecondi)
+const COOLDOWN_MS = 1000; 
 
-    <script>
-        // --- CONFIGURAZIONE GITHUB API ---
-        // INSERISCI QUI IL TUO USERNAME GITHUB (quello che vedi nell'URL del tuo profilo)
-        const GITHUB_USER = '0NotExist0'; 
+// NUOVO: Array con i percorsi di tutti i suoni possibili.
+// Inserisci qui i nomi esatti dei file presenti nella tua cartella "suoni".
+const AUDIO_FILES = [
+    'suoni/impatto1.mp3',
+    'suoni/impatto2.mp3',
+    'suoni/impatto3.mp3',
+    'suoni/impatto4.mp3'
+];
+
+// --- VARIABILI DI STATO ---
+let lastImpactTime = 0;
+
+// Inizializziamo l'oggetto Audio con il primo suono della lista per sbloccarlo in seguito
+const impactSound = new Audio(AUDIO_FILES[0]); 
+const startButton = document.getElementById('startButton');
+const statusDiv = document.getElementById('status');
+
+/**
+ * Metodo completo per la gestione dei dati provenienti dall'accelerometro.
+ */
+function handleMotion(event) {
+    const acc = event.accelerationIncludingGravity;
+
+    if (!acc || acc.x === null) return;
+
+    const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+
+    if (magnitude > SENSITIVITY_THRESHOLD) {
+        const currentTime = new Date().getTime();
         
-        // Il nome del repository che mi hai fornito
-        const GITHUB_REPO = 'Sitoscasso';
-        
-        // La cartella bersaglio
-        const FOLDER_PATH = 'suoni'; 
-
-        // --- CONFIGURAZIONE SENSORI ---
-        const SENSITIVITY_THRESHOLD = 25; 
-        const COOLDOWN_MS = 1000; 
-
-        // --- VARIABILI DI STATO ---
-        let audioFiles = []; 
-        let lastImpactTime = 0;
-        const impactSound = new Audio();
-        const startButton = document.getElementById('startButton');
-        const statusDiv = document.getElementById('status');
-        const logDiv = document.getElementById('log');
-
-        /**
-         * Metodo completo per usare le API di GitHub come se fosse un Resources.LoadAll() di Unity.
-         */
-        async function fetchGitHubFolderContents() {
-            statusDiv.textContent = "Recupero indice file...";
-            
-            // Endpoint per esplorare la cartella via API
-            const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
-
-            try {
-                const response = await fetch(apiUrl);
-                
-                if (!response.ok) {
-                    throw new Error(`Errore HTTP: ${response.status} - Controlla Username e Repo.`);
-                }
-
-                const data = await response.json();
-
-                // Filtriamo solo i file mp3 e salviamo il loro percorso relativo per riprodurli dal server Vercel
-                audioFiles = data
-                    .filter(item => item.type === 'file' && item.name.endsWith('.mp3'))
-                    .map(item => item.path); 
-
-                if (audioFiles.length > 0) {
-                    logDiv.textContent = `Trovati in automatico ${audioFiles.length} file audio!`;
-                    return true;
-                } else {
-                    logDiv.textContent = "Nessun file .mp3 trovato nella cartella suoni.";
-                    return false;
-                }
-
-            } catch (error) {
-                console.error("Errore API:", error);
-                logDiv.textContent = `Errore API: ${error.message}`;
-                return false;
-            }
+        if (currentTime - lastImpactTime > COOLDOWN_MS) {
+            lastImpactTime = currentTime;
+            triggerImpact();
         }
+    }
+}
 
-        /**
-         * Metodo completo per la gestione dei dati dall'accelerometro (equivalente di Update() con Input.acceleration).
-         */
-        function handleMotion(event) {
-            const acc = event.accelerationIncludingGravity;
-            if (!acc || acc.x === null) return;
+/**
+ * Metodo completo per gestire l'interfaccia visiva e la riproduzione audio casuale.
+ */
+function triggerImpact() {
+    // Aggiorna la UI
+    statusDiv.textContent = "💥 Botta Rilevata!";
+    statusDiv.style.color = "#E74C3C";
 
-            // Calcolo della magnitudo del vettore
-            const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+    // Pescaggio di un suono casuale dall'array
+    const randomSoundIndex = Math.floor(Math.random() * AUDIO_FILES.length);
+    const selectedSound = AUDIO_FILES[randomSoundIndex];
 
-            if (magnitude > SENSITIVITY_THRESHOLD) {
-                const currentTime = new Date().getTime();
-                if (currentTime - lastImpactTime > COOLDOWN_MS) {
-                    lastImpactTime = currentTime;
-                    triggerImpact();
-                }
-            }
-        }
+    // Aggiorna la sorgente dell'oggetto Audio con il file pescato
+    impactSound.src = selectedSound;
 
-        /**
-         * Metodo completo per la riproduzione randomica della clip audio.
-         */
-        function triggerImpact() {
-            if (audioFiles.length === 0) return;
+    // Interrompe l'audio se stava già suonando e lo fa ripartire da zero
+    impactSound.currentTime = 0;
+    impactSound.play().catch(error => {
+        console.warn("Errore durante la riproduzione dell'audio:", error);
+    });
 
-            statusDiv.textContent = "💥 Botta Rilevata!";
-            statusDiv.style.color = "#E74C3C";
+    // Ripristina la UI di ascolto dopo mezzo secondo
+    setTimeout(() => {
+        statusDiv.textContent = "In ascolto...";
+        statusDiv.style.color = "#27AE60";
+    }, 500);
+}
 
-            // Seleziona un suono a caso dall'elenco appena scaricato (equivalente di Random.Range)
-            const randomSoundIndex = Math.floor(Math.random() * audioFiles.length);
-            
-            // Assegnazione della clip alla sorgente e riproduzione
-            impactSound.src = audioFiles[randomSoundIndex];
-            impactSound.currentTime = 0;
-            
-            impactSound.play().catch(error => {
-                console.warn("Errore durante la riproduzione dell'audio:", error);
-            });
+/**
+ * Metodo completo per inizializzare permessi e sbloccare le funzionalità browser.
+ */
+async function initializeDetection() {
+    // 1. Inizializzazione "silenziosa" dell'audio per sbloccare le policy
+    impactSound.play().then(() => {
+        impactSound.pause();
+        impactSound.currentTime = 0;
+    }).catch(err => {
+        console.error("L'utente deve interagire con la pagina per sbloccare l'audio.", err);
+    });
 
-            // Ripristina l'interfaccia dopo mezzo secondo
-            setTimeout(() => {
-                statusDiv.textContent = "In ascolto...";
-                statusDiv.style.color = "#27AE60";
-            }, 500);
-        }
-
-        /**
-         * Metodo completo "Start" per inizializzare download e permessi.
-         */
-        async function initializeDetection() {
-            startButton.disabled = true;
-
-            // 1. Eseguiamo il fetch dell'indice dei file
-            const apiSuccess = await fetchGitHubFolderContents();
-
-            if (!apiSuccess) {
-                statusDiv.textContent = "Errore di inizializzazione.";
-                statusDiv.style.color = "red";
-                startButton.disabled = false;
-                return; 
-            }
-
-            // 2. Inizializzazione "silenziosa" dell'audio per sbloccare le restrizioni del browser
-            impactSound.src = audioFiles[0];
-            impactSound.play().then(() => {
-                impactSound.pause();
-                impactSound.currentTime = 0;
-            }).catch(err => {
-                console.warn("Necessaria interazione utente.", err);
-            });
-
-            // 3. Permessi sensori (obbligatori su iOS 13+)
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    const permissionState = await DeviceMotionEvent.requestPermission();
-                    if (permissionState === 'granted') {
-                        window.addEventListener('devicemotion', handleMotion);
-                        setupActiveUI();
-                    } else {
-                        statusDiv.textContent = "Permesso ai sensori negato.";
-                        statusDiv.style.color = "red";
-                    }
-                } catch (error) {
-                    statusDiv.textContent = "Errore permessi sensori.";
-                }
-            } else {
-                // Fallback per Android
+    // 2. Richiesta formale dei permessi (iOS 13+)
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        try {
+            const permissionState = await DeviceMotionEvent.requestPermission();
+            if (permissionState === 'granted') {
                 window.addEventListener('devicemotion', handleMotion);
                 setupActiveUI();
+            } else {
+                statusDiv.textContent = "Permesso ai sensori negato.";
+                statusDiv.style.color = "red";
             }
+        } catch (error) {
+            console.error("Errore nella richiesta dei permessi iOS:", error);
+            statusDiv.textContent = "Errore permessi sensori.";
         }
+    } else {
+        // 3. Fallback per Android e browser desktop
+        window.addEventListener('devicemotion', handleMotion);
+        setupActiveUI();
+    }
+}
 
-        /**
-         * Metodo di supporto per l'aggiornamento della UI allo stato attivo.
-         */
-        function setupActiveUI() {
-            statusDiv.textContent = "In ascolto...";
-            statusDiv.style.color = "#27AE60";
-            startButton.style.display = "none";
-        }
+/**
+ * Metodo di supporto per aggiornare l'interfaccia dopo il setup.
+ */
+function setupActiveUI() {
+    statusDiv.textContent = "In ascolto...";
+    statusDiv.style.color = "#27AE60";
+    startButton.style.display = "none";
+}
 
-        // --- ASSEGNAZIONE EVENTI ---
-        startButton.addEventListener('click', initializeDetection);
-
-    </script>
-</body>
-</html>
+// --- ASSEGNAZIONE EVENTI ---
+startButton.addEventListener('click', initializeDetection);
