@@ -52,11 +52,14 @@
 
     <script>
         // --- CONFIGURAZIONE GITHUB API ---
-        // INSERISCI QUI I TUOI DATI ESATTI DI GITHUB!
+        // INSERISCI QUI IL TUO USERNAME GITHUB (quello che vedi nell'URL del tuo profilo)
         const GITHUB_USER = 'INSERISCI_TUO_USERNAME'; 
-        const GITHUB_REPO = 'INSERISCI_NOME_REPO';
         
-        const FOLDER_PATH = 'suoni'; // La cartella che si vede nel tuo screenshot
+        // Il nome del repository che mi hai fornito
+        const GITHUB_REPO = 'Sitoscasso';
+        
+        // La cartella bersaglio
+        const FOLDER_PATH = 'suoni'; 
 
         // --- CONFIGURAZIONE SENSORI ---
         const SENSITIVITY_THRESHOLD = 25; 
@@ -71,7 +74,7 @@
         const logDiv = document.getElementById('log');
 
         /**
-         * Metodo completo per usare le API di GitHub come se fosse un Resources.LoadAll()
+         * Metodo completo per usare le API di GitHub come se fosse un Resources.LoadAll() di Unity.
          */
         async function fetchGitHubFolderContents() {
             statusDiv.textContent = "Recupero indice file...";
@@ -88,7 +91,7 @@
 
                 const data = await response.json();
 
-                // Filtriamo solo i file mp3 e salviamo il loro percorso relativo
+                // Filtriamo solo i file mp3 e salviamo il loro percorso relativo per riprodurli dal server Vercel
                 audioFiles = data
                     .filter(item => item.type === 'file' && item.name.endsWith('.mp3'))
                     .map(item => item.path); 
@@ -109,12 +112,13 @@
         }
 
         /**
-         * Metodo completo per la gestione dei dati dall'accelerometro.
+         * Metodo completo per la gestione dei dati dall'accelerometro (equivalente di Update() con Input.acceleration).
          */
         function handleMotion(event) {
             const acc = event.accelerationIncludingGravity;
             if (!acc || acc.x === null) return;
 
+            // Calcolo della magnitudo del vettore
             const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
 
             if (magnitude > SENSITIVITY_THRESHOLD) {
@@ -127,7 +131,7 @@
         }
 
         /**
-         * Metodo completo per la riproduzione randomica.
+         * Metodo completo per la riproduzione randomica della clip audio.
          */
         function triggerImpact() {
             if (audioFiles.length === 0) return;
@@ -135,9 +139,10 @@
             statusDiv.textContent = "💥 Botta Rilevata!";
             statusDiv.style.color = "#E74C3C";
 
-            // Seleziona un suono a caso dall'elenco appena scaricato
+            // Seleziona un suono a caso dall'elenco appena scaricato (equivalente di Random.Range)
             const randomSoundIndex = Math.floor(Math.random() * audioFiles.length);
             
+            // Assegnazione della clip alla sorgente e riproduzione
             impactSound.src = audioFiles[randomSoundIndex];
             impactSound.currentTime = 0;
             
@@ -145,6 +150,7 @@
                 console.warn("Errore durante la riproduzione dell'audio:", error);
             });
 
+            // Ripristina l'interfaccia dopo mezzo secondo
             setTimeout(() => {
                 statusDiv.textContent = "In ascolto...";
                 statusDiv.style.color = "#27AE60";
@@ -157,7 +163,7 @@
         async function initializeDetection() {
             startButton.disabled = true;
 
-            // 1. Eseguiamo l'equivalente del Resources.LoadAll()
+            // 1. Eseguiamo il fetch dell'indice dei file
             const apiSuccess = await fetchGitHubFolderContents();
 
             if (!apiSuccess) {
@@ -176,7 +182,7 @@
                 console.warn("Necessaria interazione utente.", err);
             });
 
-            // 3. Permessi sensori (iOS 13+)
+            // 3. Permessi sensori (obbligatori su iOS 13+)
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const permissionState = await DeviceMotionEvent.requestPermission();
@@ -191,14 +197,14 @@
                     statusDiv.textContent = "Errore permessi sensori.";
                 }
             } else {
-                // Fallback Android
+                // Fallback per Android
                 window.addEventListener('devicemotion', handleMotion);
                 setupActiveUI();
             }
         }
 
         /**
-         * Metodo di supporto UI.
+         * Metodo di supporto per l'aggiornamento della UI allo stato attivo.
          */
         function setupActiveUI() {
             statusDiv.textContent = "In ascolto...";
