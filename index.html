@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rilevatore di Impatti</title>
+    <title>Rilevatore di Impatti (Vercel + GitHub API)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -35,48 +35,90 @@
             font-weight: bold;
             color: #333;
         }
+        #log {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
     </style>
 </head>
 <body>
 
-    <button id="startButton">Attiva Sensori e Audio</button>
+    <button id="startButton">Attiva Sensori e Scanner</button>
     <div id="status">In attesa...</div>
+    <div id="log">Pronto per la scansione automatica...</div>
 
     <script>
-        // --- CONFIGURAZIONE ---
-        // Soglia di accelerazione. Modifica questo valore per renderlo più o meno sensibile.
-        // Valori bassi = scatta anche con movimenti leggeri.
+        // --- CONFIGURAZIONE GITHUB API ---
+        // INSERISCI QUI I TUOI DATI ESATTI DI GITHUB!
+        const GITHUB_USER = 'INSERISCI_TUO_USERNAME'; 
+        const GITHUB_REPO = 'INSERISCI_NOME_REPO';
+        
+        const FOLDER_PATH = 'suoni'; // La cartella che si vede nel tuo screenshot
+
+        // --- CONFIGURAZIONE SENSORI ---
         const SENSITIVITY_THRESHOLD = 25; 
-        
-        // Percorso del file audio dentro la cartella "suoni"
-        const AUDIO_PATH = 'suoni/impatto.mp3'; 
-        
-        // Tempo minimo tra un suono e l'altro per evitare accavallamenti (in millisecondi)
         const COOLDOWN_MS = 1000; 
 
         // --- VARIABILI DI STATO ---
+        let audioFiles = []; 
         let lastImpactTime = 0;
-        const impactSound = new Audio(AUDIO_PATH);
+        const impactSound = new Audio();
         const startButton = document.getElementById('startButton');
         const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
 
         /**
-         * Metodo completo per la gestione dei dati provenienti dall'accelerometro.
+         * Metodo completo per usare le API di GitHub come se fosse un Resources.LoadAll()
+         */
+        async function fetchGitHubFolderContents() {
+            statusDiv.textContent = "Recupero indice file...";
+            
+            // Endpoint per esplorare la cartella via API
+            const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`Errore HTTP: ${response.status} - Controlla Username e Repo.`);
+                }
+
+                const data = await response.json();
+
+                // Filtriamo solo i file mp3 e salviamo il loro percorso relativo
+                audioFiles = data
+                    .filter(item => item.type === 'file' && item.name.endsWith('.mp3'))
+                    .map(item => item.path); 
+
+                if (audioFiles.length > 0) {
+                    logDiv.textContent = `Trovati in automatico ${audioFiles.length} file audio!`;
+                    return true;
+                } else {
+                    logDiv.textContent = "Nessun file .mp3 trovato nella cartella suoni.";
+                    return false;
+                }
+
+            } catch (error) {
+                console.error("Errore API:", error);
+                logDiv.textContent = `Errore API: ${error.message}`;
+                return false;
+            }
+        }
+
+        /**
+         * Metodo completo per la gestione dei dati dall'accelerometro.
          */
         function handleMotion(event) {
             const acc = event.accelerationIncludingGravity;
-
-            // Se il dispositivo non ha il sensore o non restituisce dati
             if (!acc || acc.x === null) return;
 
-            // Calcolo della magnitudo del vettore di accelerazione 3D
             const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
 
-            // Rilevamento della botta in base alla soglia
             if (magnitude > SENSITIVITY_THRESHOLD) {
                 const currentTime = new Date().getTime();
-                
-                // Controlliamo che sia passato abbastanza tempo dall'ultima botta
                 if (currentTime - lastImpactTime > COOLDOWN_MS) {
                     lastImpactTime = currentTime;
                     triggerImpact();
@@ -85,20 +127,24 @@
         }
 
         /**
-         * Metodo completo per gestire l'interfaccia visiva e la riproduzione audio.
+         * Metodo completo per la riproduzione randomica.
          */
         function triggerImpact() {
-            // Aggiorna la UI
+            if (audioFiles.length === 0) return;
+
             statusDiv.textContent = "💥 Botta Rilevata!";
             statusDiv.style.color = "#E74C3C";
 
-            // Interrompe l'audio se stava già suonando e lo fa ripartire da zero
+            // Seleziona un suono a caso dall'elenco appena scaricato
+            const randomSoundIndex = Math.floor(Math.random() * audioFiles.length);
+            
+            impactSound.src = audioFiles[randomSoundIndex];
             impactSound.currentTime = 0;
+            
             impactSound.play().catch(error => {
                 console.warn("Errore durante la riproduzione dell'audio:", error);
             });
 
-            // Ripristina la UI di ascolto dopo mezzo secondo
             setTimeout(() => {
                 statusDiv.textContent = "In ascolto...";
                 statusDiv.style.color = "#27AE60";
@@ -106,18 +152,31 @@
         }
 
         /**
-         * Metodo completo per inizializzare permessi e sbloccare le funzionalità browser.
+         * Metodo completo "Start" per inizializzare download e permessi.
          */
         async function initializeDetection() {
-            // 1. Inizializzazione "silenziosa" dell'audio per sbloccare le policy dei browser
+            startButton.disabled = true;
+
+            // 1. Eseguiamo l'equivalente del Resources.LoadAll()
+            const apiSuccess = await fetchGitHubFolderContents();
+
+            if (!apiSuccess) {
+                statusDiv.textContent = "Errore di inizializzazione.";
+                statusDiv.style.color = "red";
+                startButton.disabled = false;
+                return; 
+            }
+
+            // 2. Inizializzazione "silenziosa" dell'audio per sbloccare le restrizioni del browser
+            impactSound.src = audioFiles[0];
             impactSound.play().then(() => {
                 impactSound.pause();
                 impactSound.currentTime = 0;
             }).catch(err => {
-                console.error("L'utente deve interagire con la pagina per sbloccare l'audio.", err);
+                console.warn("Necessaria interazione utente.", err);
             });
 
-            // 2. Richiesta formale dei permessi (obbligatorio su iOS 13+)
+            // 3. Permessi sensori (iOS 13+)
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const permissionState = await DeviceMotionEvent.requestPermission();
@@ -129,23 +188,22 @@
                         statusDiv.style.color = "red";
                     }
                 } catch (error) {
-                    console.error("Errore nella richiesta dei permessi iOS:", error);
                     statusDiv.textContent = "Errore permessi sensori.";
                 }
             } else {
-                // 3. Fallback per Android e vecchi dispositivi
+                // Fallback Android
                 window.addEventListener('devicemotion', handleMotion);
                 setupActiveUI();
             }
         }
 
         /**
-         * Metodo di supporto per aggiornare l'interfaccia dopo il setup.
+         * Metodo di supporto UI.
          */
         function setupActiveUI() {
             statusDiv.textContent = "In ascolto...";
             statusDiv.style.color = "#27AE60";
-            startButton.style.display = "none"; // Nasconde il bottone dopo l'attivazione
+            startButton.style.display = "none";
         }
 
         // --- ASSEGNAZIONE EVENTI ---
